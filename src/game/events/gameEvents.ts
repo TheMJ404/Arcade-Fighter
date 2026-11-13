@@ -10,6 +10,13 @@ export interface GameEventMap {
     height: number;
     arenaId?: string;
     groundY?: number;
+    characters?: Array<{
+      id: string;
+      x: number;
+      y: number;
+      facing: 'left' | 'right';
+      animationKey: string;
+    }>;
   };
   'viewport:resized': {width: number; height: number};
   'game:destroyed': {timestamp: number};

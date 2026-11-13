@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
-import {ARENA_ASSETS} from '../assets/assetManifest';
+import {ARENA_ASSETS, CHARACTER_ASSETS} from '../assets/assetManifest';
+import {FighterEntity} from '../characters/FighterEntity';
 import {
   type ArenaConfig,
   calculateCoverScale,
   getArenaConfig,
 } from '../config/arenaConfig';
+import {getCharacterConfig} from '../config/characterConfig';
 import {GAME_HEIGHT, GAME_WIDTH, SCENE_KEYS} from '../config/constants';
 import {gameEvents} from '../events/gameEvents';
 
@@ -27,13 +29,14 @@ interface LanternPulse {
 }
 
 /**
- * Primary fighting arena scene (Phase 2: Moonlit Temple).
- * Loads and displays the 16-bit pixel-art temple stage scaled to 960x540
- * with nearest-neighbor filtering, configurable arena bounds, and subtle
- * ambient cherry blossom petals + lantern glow.
+ * Primary fighting arena scene (Phase 3: Moonlit Temple + Player 1 idle fighter).
+ * Loads the Moonlit Temple backdrop and Player 1 spritesheet via the centralized
+ * asset manifest, keeps nearest-neighbor pixel rendering, and spawns Player 1
+ * aligned to the arena's configurable ground plane.
  */
 export class BootPreviewScene extends Phaser.Scene {
   private arenaConfig: ArenaConfig;
+  private player1: FighterEntity | null = null;
   private petals: DriftingPetal[] = [];
   private lanternPulses: LanternPulse[] = [];
   private elapsedSeconds = 0;
@@ -51,6 +54,17 @@ export class BootPreviewScene extends Phaser.Scene {
     if (!this.textures.exists(ARENA_ASSETS.moonlitTemple.key)) {
       this.load.image(ARENA_ASSETS.moonlitTemple.key, ARENA_ASSETS.moonlitTemple.url);
     }
+
+    if (!this.textures.exists(CHARACTER_ASSETS.player1Idle.key)) {
+      this.load.spritesheet(
+        CHARACTER_ASSETS.player1Idle.key,
+        CHARACTER_ASSETS.player1Idle.url,
+        {
+          frameWidth: CHARACTER_ASSETS.player1Idle.frameWidth,
+          frameHeight: CHARACTER_ASSETS.player1Idle.frameHeight,
+        },
+      );
+    }
   }
 
   create(): void {
@@ -61,11 +75,17 @@ export class BootPreviewScene extends Phaser.Scene {
     this.renderArenaBackground();
     this.createAmbientLanternGlows();
     this.createSakuraPetals();
+    this.spawnCharacters();
 
     this.scale.on('resize', this.handleScaleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.handleScaleResize, this);
+      this.player1?.destroy();
+      this.player1 = null;
     });
+
+    const p1Sprite = this.player1?.getSprite();
+    const p1Config = this.player1?.getConfig();
 
     gameEvents.emit('scene:ready', {
       sceneKey: SCENE_KEYS.BOOT_PREVIEW,
@@ -73,6 +93,18 @@ export class BootPreviewScene extends Phaser.Scene {
       height: GAME_HEIGHT,
       arenaId: this.arenaConfig.id,
       groundY: this.arenaConfig.bounds.groundY,
+      characters:
+        p1Sprite && p1Config && this.player1
+          ? [
+              {
+                id: p1Config.id,
+                x: p1Sprite.x,
+                y: p1Sprite.y,
+                facing: this.player1.getFacing(),
+                animationKey: p1Config.animations.idle.key,
+              },
+            ]
+          : [],
     });
   }
 
@@ -117,15 +149,22 @@ export class BootPreviewScene extends Phaser.Scene {
     const backdrop = this.add.image(cover.x, cover.y, textureKey);
     backdrop.setDisplaySize(cover.width, cover.height);
     backdrop.setOrigin(0.5, 0.5);
+    backdrop.setDepth(0);
+  }
+
+  private spawnCharacters(): void {
+    const player1Config = getCharacterConfig('player-1');
+    this.player1 = new FighterEntity(
+      this,
+      player1Config,
+      this.arenaConfig.spawnPoints.player1,
+    );
   }
 
   private createAmbientLanternGlows(): void {
     const glowSpots = [
-      // Left hanging red paper lantern
       {x: 200, y: 204, w: 94, h: 112, color: 0xff5a1f, baseAlpha: 0.12, speed: 3.1},
-      // Mid-right terrace stone lantern
       {x: 686, y: 274, w: 36, h: 36, color: 0xffb347, baseAlpha: 0.11, speed: 2.6},
-      // Foreground-right large stone lantern
       {x: 866, y: 314, w: 64, h: 64, color: 0xffb347, baseAlpha: 0.13, speed: 2.8},
     ];
 
@@ -133,6 +172,7 @@ export class BootPreviewScene extends Phaser.Scene {
       const spot = glowSpots[i];
       const glow = this.add.ellipse(spot.x, spot.y, spot.w, spot.h, spot.color, spot.baseAlpha);
       glow.setBlendMode(Phaser.BlendModes.ADD);
+      glow.setDepth(1);
       this.lanternPulses.push({
         glow,
         baseAlpha: spot.baseAlpha,
@@ -153,7 +193,9 @@ export class BootPreviewScene extends Phaser.Scene {
       const width = i % 3 === 0 ? 3 : 2;
       const height = 2;
 
-      const rect = this.add.rectangle(startX, startY, width, height, color, 0.85);
+      const rect = this.add
+        .rectangle(startX, startY, width, height, color, 0.85)
+        .setDepth(i % 2 === 0 ? 1 : 4);
       this.petals.push({
         rect,
         x: startX,
