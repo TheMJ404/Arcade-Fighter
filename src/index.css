@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: #0b0d1f;
+    color: #f4e8c1;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Preserve crisp nearest-neighbor pixel scaling on the Phaser canvas */
+[data-testid="phaser-container"] canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: none;
+  box-shadow: 0 0 0 1px #241d46;
+}
