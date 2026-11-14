@@ -20,6 +20,9 @@ export function PhaserViewport() {
 
     const game = createArcadeFighterGame(container);
     gameRef.current = game;
+    if (import.meta.env.DEV) {
+      (window as unknown as Record<string, unknown>).__arcadeFighterGame = game;
+    }
 
     const unsubscribeReady = gameEvents.on('scene:ready', () => {
       document.body.dataset.state = 'preview';
@@ -54,6 +57,9 @@ export function PhaserViewport() {
 
       const activeGame = gameRef.current;
       gameRef.current = null;
+      if (import.meta.env.DEV) {
+        delete (window as unknown as Record<string, unknown>).__arcadeFighterGame;
+      }
       destroyArcadeFighterGame(activeGame);
       delete document.body.dataset.state;
     };

@@ -1,0 +1,76 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {evaluateFighterMovement} from './movementStateMachine';
+
+const BASE_PARAMS = {
+  onGround: true,
+  currentFacing: 'right' as const,
+  walkSpeed: 240,
+  runSpeed: 410,
+  jumpVelocity: -640,
+  autoFaceOpponent: false,
+};
+
+test('defaults to idle when grounded with no input and preserves last facing', () => {
+  const decision = evaluateFighterMovement({
+    ...BASE_PARAMS,
+    currentFacing: 'left',
+    input: {left: false, right: false, jumpHeld: false, jumpJustPressed: false, crouch: false, run: false},
+  });
+
+  assert.equal(decision.state, 'idle');
+  assert.equal(decision.targetVelocityX, 0);
+  assert.equal(decision.facing, 'left');
+  assert.equal(decision.shouldJump, false);
+  assert.equal(decision.isCrouching, false);
+});
+
+test('walks left/right and runs when Shift is held', () => {
+  const walkLeft = evaluateFighterMovement({
+    ...BASE_PARAMS,
+    input: {left: true, right: false, jumpHeld: false, jumpJustPressed: false, crouch: false, run: false},
+  });
+  assert.equal(walkLeft.state, 'walking');
+  assert.equal(walkLeft.targetVelocityX, -240);
+  assert.equal(walkLeft.facing, 'left');
+
+  const runRight = evaluateFighterMovement({
+    ...BASE_PARAMS,
+    currentFacing: 'left',
+    input: {left: false, right: true, jumpHeld: false, jumpJustPressed: false, crouch: false, run: true},
+  });
+  assert.equal(runRight.state, 'running');
+  assert.equal(runRight.targetVelocityX, 410);
+  assert.equal(runRight.facing, 'right');
+});
+
+test('crouch shrinks stance and stops horizontal movement on ground', () => {
+  const crouch = evaluateFighterMovement({
+    ...BASE_PARAMS,
+    input: {left: false, right: true, jumpHeld: false, jumpJustPressed: false, crouch: true, run: true},
+  });
+  assert.equal(crouch.state, 'crouching');
+  assert.equal(crouch.isCrouching, true);
+  assert.equal(crouch.targetVelocityX, 0);
+  assert.equal(crouch.shouldJump, false);
+});
+
+test('prevents infinite jumping while airborne and gives jump priority over walk/crouch', () => {
+  const takeoff = evaluateFighterMovement({
+    ...BASE_PARAMS,
+    input: {left: false, right: true, jumpHeld: true, jumpJustPressed: true, crouch: false, run: false},
+  });
+  assert.equal(takeoff.state, 'jumping');
+  assert.equal(takeoff.shouldJump, true);
+  assert.equal(takeoff.jumpVelocityY, -640);
+  assert.equal(takeoff.targetVelocityX, 240);
+
+  const airborneAttempt = evaluateFighterMovement({
+    ...BASE_PARAMS,
+    onGround: false,
+    input: {left: false, right: false, jumpHeld: true, jumpJustPressed: true, crouch: true, run: false},
+  });
+  assert.equal(airborneAttempt.state, 'jumping');
+  assert.equal(airborneAttempt.shouldJump, false);
+  assert.equal(airborneAttempt.isCrouching, false);
+});

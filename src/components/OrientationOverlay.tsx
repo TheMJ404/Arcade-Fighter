@@ -40,7 +40,7 @@ export function OrientationOverlay() {
       role="status"
       aria-live="polite"
       data-testid="orientation-advisory"
-      className="fixed inset-x-3 bottom-3 z-20 mx-auto flex max-w-md items-center justify-between gap-3 rounded-lg border border-[#3f326b] bg-[#131636]/95 px-4 py-2.5 text-[#f4e8c1] shadow-lg"
+      className="fixed inset-x-3 top-3 z-20 mx-auto flex max-w-md items-center justify-between gap-3 rounded-lg border border-[#3f326b] bg-[#131636]/95 px-4 py-2.5 text-[#f4e8c1] shadow-lg"
     >
       <div className="flex items-center gap-3 min-w-0">
         <svg

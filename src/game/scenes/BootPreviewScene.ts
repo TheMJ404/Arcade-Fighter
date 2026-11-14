@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {ARENA_ASSETS, CHARACTER_ASSETS} from '../assets/assetManifest';
-import {FighterEntity} from '../characters/FighterEntity';
+import {FighterEntity, type FighterBodySnapshot} from '../characters/FighterEntity';
 import {
   type ArenaConfig,
   calculateCoverScale,
@@ -9,6 +9,7 @@ import {
 import {getCharacterConfig} from '../config/characterConfig';
 import {GAME_HEIGHT, GAME_WIDTH, SCENE_KEYS} from '../config/constants';
 import {gameEvents} from '../events/gameEvents';
+import {InputManager} from '../input/InputManager';
 
 interface DriftingPetal {
   rect: Phaser.GameObjects.Rectangle;
@@ -29,14 +30,15 @@ interface LanternPulse {
 }
 
 /**
- * Primary fighting arena scene (Phase 3: Moonlit Temple + Player 1 idle fighter).
- * Loads the Moonlit Temple backdrop and Player 1 spritesheet via the centralized
- * asset manifest, keeps nearest-neighbor pixel rendering, and spawns Player 1
- * aligned to the arena's configurable ground plane.
+ * Primary fighting arena scene (Phase 4: Player 1 Movement & Animation System).
+ * Loads the Moonlit Temple backdrop and all Player 1 movement spritesheets,
+ * enforces arena physics world bounds, and drives Player 1 via unified keyboard
+ * and mobile touch controls.
  */
 export class BootPreviewScene extends Phaser.Scene {
   private arenaConfig: ArenaConfig;
   private player1: FighterEntity | null = null;
+  private inputManager: InputManager | null = null;
   private petals: DriftingPetal[] = [];
   private lanternPulses: LanternPulse[] = [];
   private elapsedSeconds = 0;
@@ -50,20 +52,22 @@ export class BootPreviewScene extends Phaser.Scene {
     return this.arenaConfig;
   }
 
+  getPlayer1Snapshot(): FighterBodySnapshot | null {
+    return this.player1?.getBodySnapshot() ?? null;
+  }
+
   preload(): void {
     if (!this.textures.exists(ARENA_ASSETS.moonlitTemple.key)) {
       this.load.image(ARENA_ASSETS.moonlitTemple.key, ARENA_ASSETS.moonlitTemple.url);
     }
 
-    if (!this.textures.exists(CHARACTER_ASSETS.player1Idle.key)) {
-      this.load.spritesheet(
-        CHARACTER_ASSETS.player1Idle.key,
-        CHARACTER_ASSETS.player1Idle.url,
-        {
-          frameWidth: CHARACTER_ASSETS.player1Idle.frameWidth,
-          frameHeight: CHARACTER_ASSETS.player1Idle.frameHeight,
-        },
-      );
+    for (const asset of Object.values(CHARACTER_ASSETS)) {
+      if (!this.textures.exists(asset.key)) {
+        this.load.spritesheet(asset.key, asset.url, {
+          frameWidth: asset.frameWidth,
+          frameHeight: asset.frameHeight,
+        });
+      }
     }
   }
 
@@ -72,14 +76,25 @@ export class BootPreviewScene extends Phaser.Scene {
     this.lanternPulses = [];
     this.elapsedSeconds = 0;
 
+    const {bounds} = this.arenaConfig;
+    this.physics.world.setBounds(
+      bounds.left,
+      0,
+      bounds.right - bounds.left,
+      bounds.groundY,
+    );
+
     this.renderArenaBackground();
     this.createAmbientLanternGlows();
     this.createSakuraPetals();
+    this.inputManager = new InputManager(this);
     this.spawnCharacters();
 
     this.scale.on('resize', this.handleScaleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.handleScaleResize, this);
+      this.inputManager?.destroy();
+      this.inputManager = null;
       this.player1?.destroy();
       this.player1 = null;
     });
@@ -111,6 +126,11 @@ export class BootPreviewScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     const dt = Math.min(delta / 1000, 0.05);
     this.elapsedSeconds += dt;
+
+    if (this.player1 && this.inputManager) {
+      const inputSnapshot = this.inputManager.sample();
+      this.player1.update(inputSnapshot);
+    }
 
     for (let i = 0; i < this.lanternPulses.length; i += 1) {
       const pulse = this.lanternPulses[i];
@@ -158,6 +178,7 @@ export class BootPreviewScene extends Phaser.Scene {
       this,
       player1Config,
       this.arenaConfig.spawnPoints.player1,
+      this.arenaConfig.bounds,
     );
   }
 
