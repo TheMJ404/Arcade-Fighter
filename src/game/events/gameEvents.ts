@@ -2,6 +2,7 @@
  * Typed publish/subscribe bridge for decoupled communication between Phaser scenes
  * and React components. Keeps Phaser internals out of React state.
  */
+import type {AttackId, HitImpactEvent} from '../combat/combatTypes';
 
 export interface GameEventMap {
   'scene:ready': {
@@ -20,6 +21,19 @@ export interface GameEventMap {
   };
   'viewport:resized': {width: number; height: number};
   'game:destroyed': {timestamp: number};
+  'combat:hit': HitImpactEvent;
+  'combat:healthChanged': {
+    combatantId: string;
+    name: string;
+    health: number;
+    maxHealth: number;
+    lastAttackId: AttackId;
+    wasBlocked: boolean;
+  };
+  'combat:defeated': {
+    combatantId: string;
+    defeatedById: string;
+  };
 }
 
 export type GameEventName = keyof GameEventMap;

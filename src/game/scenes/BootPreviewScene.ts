@@ -2,6 +2,14 @@ import Phaser from 'phaser';
 import {ARENA_ASSETS, CHARACTER_ASSETS} from '../assets/assetManifest';
 import {FighterEntity, type FighterBodySnapshot} from '../characters/FighterEntity';
 import {
+  TrainingDummyEntity,
+  type TrainingDummySnapshot,
+} from '../characters/TrainingDummyEntity';
+import {CombatManager} from '../combat/CombatManager';
+import {DEFAULT_COMBAT_CONFIG} from '../combat/combatConfig';
+import type {ActiveHitboxDescriptor, HitImpactEvent} from '../combat/combatTypes';
+import {resolveGroundedPushbox} from '../combat/HitboxManager';
+import {
   type ArenaConfig,
   calculateCoverScale,
   getArenaConfig,
@@ -30,15 +38,18 @@ interface LanternPulse {
 }
 
 /**
- * Primary fighting arena scene (Phase 4: Player 1 Movement & Animation System).
- * Loads the Moonlit Temple backdrop and all Player 1 movement spritesheets,
- * enforces arena physics world bounds, and drives Player 1 via unified keyboard
- * and mobile touch controls.
+ * Primary fighting arena scene (Phase 5: Combat System).
+ * Coordinates the Moonlit Temple arena, Player 1, temporary Training Dummy,
+ * CombatManager hitboxes/damage/blocking, and temporary damage verification text.
  */
 export class BootPreviewScene extends Phaser.Scene {
   private arenaConfig: ArenaConfig;
   private player1: FighterEntity | null = null;
+  private trainingDummy: TrainingDummyEntity | null = null;
+  private combatManager: CombatManager | null = null;
   private inputManager: InputManager | null = null;
+  private tempHealthReadout: Phaser.GameObjects.Text | null = null;
+  private unsubHitEvent: (() => void) | null = null;
   private petals: DriftingPetal[] = [];
   private lanternPulses: LanternPulse[] = [];
   private elapsedSeconds = 0;
@@ -54,6 +65,28 @@ export class BootPreviewScene extends Phaser.Scene {
 
   getPlayer1Snapshot(): FighterBodySnapshot | null {
     return this.player1?.getBodySnapshot() ?? null;
+  }
+
+  getTrainingDummySnapshot(): TrainingDummySnapshot | null {
+    return this.trainingDummy?.getSnapshot() ?? null;
+  }
+
+  getCombatDebugSnapshot(): {
+    player1: FighterBodySnapshot | null;
+    dummy: TrainingDummySnapshot | null;
+    activeHitboxes: ActiveHitboxDescriptor[];
+    lastHitEvent: HitImpactEvent | null;
+  } {
+    return {
+      player1: this.getPlayer1Snapshot(),
+      dummy: this.getTrainingDummySnapshot(),
+      activeHitboxes: this.combatManager?.getActiveHitboxes() ?? [],
+      lastHitEvent: this.combatManager?.getLastHitEvent() ?? null,
+    };
+  }
+
+  setTrainingDummyBlocking(enabled: boolean): void {
+    this.trainingDummy?.setBlocking(enabled);
   }
 
   preload(): void {
@@ -88,15 +121,30 @@ export class BootPreviewScene extends Phaser.Scene {
     this.createAmbientLanternGlows();
     this.createSakuraPetals();
     this.inputManager = new InputManager(this);
+    this.combatManager = new CombatManager(DEFAULT_COMBAT_CONFIG);
     this.spawnCharacters();
+    this.createTemporaryHealthReadout();
+
+    this.unsubHitEvent = gameEvents.on('combat:hit', (impact) => {
+      this.spawnHitImpactFeedback(impact);
+      this.refreshTemporaryHealthReadout();
+    });
 
     this.scale.on('resize', this.handleScaleResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', this.handleScaleResize, this);
+      this.unsubHitEvent?.();
+      this.unsubHitEvent = null;
+      this.combatManager?.destroy();
+      this.combatManager = null;
       this.inputManager?.destroy();
       this.inputManager = null;
       this.player1?.destroy();
       this.player1 = null;
+      this.trainingDummy?.destroy();
+      this.trainingDummy = null;
+      this.tempHealthReadout?.destroy();
+      this.tempHealthReadout = null;
     });
 
     const p1Sprite = this.player1?.getSprite();
@@ -124,13 +172,40 @@ export class BootPreviewScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    const dt = Math.min(delta / 1000, 0.05);
+    const dtMs = Math.min(delta, 50);
+    const dt = dtMs / 1000;
     this.elapsedSeconds += dt;
 
     if (this.player1 && this.inputManager) {
       const inputSnapshot = this.inputManager.sample();
-      this.player1.update(inputSnapshot);
+      this.player1.update(inputSnapshot, dtMs);
     }
+
+    this.trainingDummy?.update(dtMs);
+
+    if (this.player1 && this.trainingDummy && !this.trainingDummy.isDefeated()) {
+      const p1Snap = this.player1.getBodySnapshot();
+      const dummySnap = this.trainingDummy.getSnapshot();
+      if (p1Snap.onGround && Math.abs(dummySnap.bottom - this.arenaConfig.bounds.groundY) < 4) {
+        const separated = resolveGroundedPushbox(
+          p1Snap.x,
+          dummySnap.x,
+          88,
+          this.arenaConfig.bounds.left,
+          this.arenaConfig.bounds.right,
+          p1Snap.width / 2,
+          dummySnap.width / 2,
+        );
+        if (separated.aX !== p1Snap.x) {
+          this.player1.getSprite().setX(separated.aX);
+        }
+        if (separated.bX !== dummySnap.x) {
+          this.trainingDummy.setPositionX(separated.bX);
+        }
+      }
+    }
+
+    this.combatManager?.update();
 
     for (let i = 0; i < this.lanternPulses.length; i += 1) {
       const pulse = this.lanternPulses[i];
@@ -180,6 +255,76 @@ export class BootPreviewScene extends Phaser.Scene {
       this.arenaConfig.spawnPoints.player1,
       this.arenaConfig.bounds,
     );
+
+    this.trainingDummy = new TrainingDummyEntity(
+      this,
+      this.arenaConfig.spawnPoints.player2,
+      DEFAULT_COMBAT_CONFIG.trainingOpponent.maxHealth,
+    );
+
+    this.combatManager?.registerCombatant(this.player1);
+    this.combatManager?.registerCombatant(this.trainingDummy);
+  }
+
+  private createTemporaryHealthReadout(): void {
+    this.tempHealthReadout = this.add
+      .text(14, 12, '', {
+        fontFamily: 'monospace',
+        fontSize: '12px',
+        fontStyle: 'bold',
+        color: '#f4e8c1',
+        backgroundColor: '#0b0d1fcc',
+        padding: {x: 8, y: 4},
+      })
+      .setDepth(6);
+    this.refreshTemporaryHealthReadout();
+  }
+
+  private refreshTemporaryHealthReadout(): void {
+    if (!this.tempHealthReadout || !this.player1 || !this.trainingDummy) {
+      return;
+    }
+    const p1Hp = `${this.player1.getHealth()}/${this.player1.getMaxHealth()}`;
+    const dummyHp = `${this.trainingDummy.getHealth()}/${this.trainingDummy.getMaxHealth()}`;
+    this.tempHealthReadout.setText(`P1 HP: ${p1Hp}   |   DUMMY HP: ${dummyHp}`);
+  }
+
+  private spawnHitImpactFeedback(impact: HitImpactEvent): void {
+    const sparkColor = impact.wasBlocked ? 0x60a5fa : 0xfbbf24;
+    const spark = this.add
+      .circle(impact.impactX, impact.impactY, impact.wasBlocked ? 14 : 18, sparkColor, 0.75)
+      .setDepth(6);
+
+    const damageLabel = impact.wasBlocked
+      ? `BLOCKED -${impact.damageApplied}`
+      : `-${impact.damageApplied}`;
+    const popup = this.add
+      .text(impact.impactX, impact.impactY - 22, damageLabel, {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        fontStyle: 'bold',
+        color: impact.wasBlocked ? '#93c5fd' : '#fde047',
+        stroke: '#0b0d1f',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 0.5)
+      .setDepth(6);
+
+    this.tweens.add({
+      targets: spark,
+      scale: 1.7,
+      alpha: 0,
+      duration: 180,
+      onComplete: () => spark.destroy(),
+    });
+
+    this.tweens.add({
+      targets: popup,
+      y: impact.impactY - 56,
+      alpha: 0,
+      duration: 520,
+      onComplete: () => popup.destroy(),
+    });
   }
 
   private createAmbientLanternGlows(): void {

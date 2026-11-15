@@ -18,6 +18,11 @@ interface BoundKeys {
   crouchS: Phaser.Input.Keyboard.Key;
   crouchDown: Phaser.Input.Keyboard.Key;
   shift: Phaser.Input.Keyboard.Key;
+  lightPunchJ: Phaser.Input.Keyboard.Key;
+  heavyPunchK: Phaser.Input.Keyboard.Key;
+  lightKickU: Phaser.Input.Keyboard.Key;
+  heavyKickI: Phaser.Input.Keyboard.Key;
+  blockL: Phaser.Input.Keyboard.Key;
 }
 
 const CAPTURED_KEY_CODES = [
@@ -30,17 +35,26 @@ const CAPTURED_KEY_CODES = [
   Phaser.Input.Keyboard.KeyCodes.LEFT,
   Phaser.Input.Keyboard.KeyCodes.RIGHT,
   Phaser.Input.Keyboard.KeyCodes.SPACE,
+  Phaser.Input.Keyboard.KeyCodes.J,
+  Phaser.Input.Keyboard.KeyCodes.K,
+  Phaser.Input.Keyboard.KeyCodes.U,
+  Phaser.Input.Keyboard.KeyCodes.I,
+  Phaser.Input.Keyboard.KeyCodes.L,
 ];
 
 /**
  * Unified Phaser input coordinator combining desktop keyboard controls and
  * mobile touch controls via VirtualInputBridge. Handles key capture to stop
- * browser scrolling and resets stuck inputs on window blur / tab switch.
+ * browser scrolling/shortcuts and resets stuck inputs on window blur / tab switch.
  */
 export class InputManager {
   private readonly scene: Phaser.Scene;
   private readonly keys: BoundKeys | null;
   private prevJumpHeld = false;
+  private prevLightPunchHeld = false;
+  private prevHeavyPunchHeld = false;
+  private prevLightKickHeld = false;
+  private prevHeavyKickHeld = false;
   private destroyed = false;
 
   private readonly handleWindowBlur = (): void => {
@@ -70,6 +84,11 @@ export class InputManager {
         crouchS: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S, true, false),
         crouchDown: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN, true, false),
         shift: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT, false, false),
+        lightPunchJ: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.J, true, false),
+        heavyPunchK: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.K, true, false),
+        lightKickU: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.U, true, false),
+        heavyKickI: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.I, true, false),
+        blockL: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L, true, false),
       };
     } else {
       this.keys = null;
@@ -92,6 +111,11 @@ export class InputManager {
         jumpJustPressed: false,
         crouch: false,
         run: false,
+        lightPunchJustPressed: false,
+        heavyPunchJustPressed: false,
+        lightKickJustPressed: false,
+        heavyKickJustPressed: false,
+        blockHeld: false,
       };
     }
 
@@ -105,12 +129,27 @@ export class InputManager {
             this.keys.jumpSpace.isDown,
           crouch: this.keys.crouchS.isDown || this.keys.crouchDown.isDown,
           run: this.keys.shift.isDown,
+          lightPunch: this.keys.lightPunchJ.isDown,
+          heavyPunch: this.keys.heavyPunchK.isDown,
+          lightKick: this.keys.lightKickU.isDown,
+          heavyKick: this.keys.heavyKickI.isDown,
+          block: this.keys.blockL.isDown,
         }
       : EMPTY_DIRECTIONAL_INPUT;
 
     const merged = mergeDirectionalInputs(keyboardState, virtualInputBridge.getState());
+
     const jumpJustPressed = merged.jump && !this.prevJumpHeld;
+    const lightPunchJustPressed = merged.lightPunch && !this.prevLightPunchHeld;
+    const heavyPunchJustPressed = merged.heavyPunch && !this.prevHeavyPunchHeld;
+    const lightKickJustPressed = merged.lightKick && !this.prevLightKickHeld;
+    const heavyKickJustPressed = merged.heavyKick && !this.prevHeavyKickHeld;
+
     this.prevJumpHeld = merged.jump;
+    this.prevLightPunchHeld = merged.lightPunch;
+    this.prevHeavyPunchHeld = merged.heavyPunch;
+    this.prevLightKickHeld = merged.lightKick;
+    this.prevHeavyKickHeld = merged.heavyKick;
 
     return {
       left: merged.left,
@@ -119,11 +158,20 @@ export class InputManager {
       jumpJustPressed,
       crouch: merged.crouch,
       run: merged.run,
+      lightPunchJustPressed,
+      heavyPunchJustPressed,
+      lightKickJustPressed,
+      heavyKickJustPressed,
+      blockHeld: merged.block,
     };
   }
 
   resetAllInputs(): void {
     this.prevJumpHeld = false;
+    this.prevLightPunchHeld = false;
+    this.prevHeavyPunchHeld = false;
+    this.prevLightKickHeld = false;
+    this.prevHeavyKickHeld = false;
     this.scene.input.keyboard?.resetKeys();
     virtualInputBridge.reset();
   }

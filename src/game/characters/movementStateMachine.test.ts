@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import type {FighterInputSnapshot} from '../input/inputTypes';
 import {evaluateFighterMovement} from './movementStateMachine';
 
 const BASE_PARAMS = {
@@ -11,11 +12,25 @@ const BASE_PARAMS = {
   autoFaceOpponent: false,
 };
 
+const EMPTY_INPUT: FighterInputSnapshot = {
+  left: false,
+  right: false,
+  jumpHeld: false,
+  jumpJustPressed: false,
+  crouch: false,
+  run: false,
+  lightPunchJustPressed: false,
+  heavyPunchJustPressed: false,
+  lightKickJustPressed: false,
+  heavyKickJustPressed: false,
+  blockHeld: false,
+};
+
 test('defaults to idle when grounded with no input and preserves last facing', () => {
   const decision = evaluateFighterMovement({
     ...BASE_PARAMS,
     currentFacing: 'left',
-    input: {left: false, right: false, jumpHeld: false, jumpJustPressed: false, crouch: false, run: false},
+    input: {...EMPTY_INPUT},
   });
 
   assert.equal(decision.state, 'idle');
@@ -28,7 +43,7 @@ test('defaults to idle when grounded with no input and preserves last facing', (
 test('walks left/right and runs when Shift is held', () => {
   const walkLeft = evaluateFighterMovement({
     ...BASE_PARAMS,
-    input: {left: true, right: false, jumpHeld: false, jumpJustPressed: false, crouch: false, run: false},
+    input: {...EMPTY_INPUT, left: true},
   });
   assert.equal(walkLeft.state, 'walking');
   assert.equal(walkLeft.targetVelocityX, -240);
@@ -37,7 +52,7 @@ test('walks left/right and runs when Shift is held', () => {
   const runRight = evaluateFighterMovement({
     ...BASE_PARAMS,
     currentFacing: 'left',
-    input: {left: false, right: true, jumpHeld: false, jumpJustPressed: false, crouch: false, run: true},
+    input: {...EMPTY_INPUT, right: true, run: true},
   });
   assert.equal(runRight.state, 'running');
   assert.equal(runRight.targetVelocityX, 410);
@@ -47,7 +62,7 @@ test('walks left/right and runs when Shift is held', () => {
 test('crouch shrinks stance and stops horizontal movement on ground', () => {
   const crouch = evaluateFighterMovement({
     ...BASE_PARAMS,
-    input: {left: false, right: true, jumpHeld: false, jumpJustPressed: false, crouch: true, run: true},
+    input: {...EMPTY_INPUT, right: true, crouch: true, run: true},
   });
   assert.equal(crouch.state, 'crouching');
   assert.equal(crouch.isCrouching, true);
@@ -58,7 +73,7 @@ test('crouch shrinks stance and stops horizontal movement on ground', () => {
 test('prevents infinite jumping while airborne and gives jump priority over walk/crouch', () => {
   const takeoff = evaluateFighterMovement({
     ...BASE_PARAMS,
-    input: {left: false, right: true, jumpHeld: true, jumpJustPressed: true, crouch: false, run: false},
+    input: {...EMPTY_INPUT, right: true, jumpHeld: true, jumpJustPressed: true},
   });
   assert.equal(takeoff.state, 'jumping');
   assert.equal(takeoff.shouldJump, true);
@@ -68,7 +83,7 @@ test('prevents infinite jumping while airborne and gives jump priority over walk
   const airborneAttempt = evaluateFighterMovement({
     ...BASE_PARAMS,
     onGround: false,
-    input: {left: false, right: false, jumpHeld: true, jumpJustPressed: true, crouch: true, run: false},
+    input: {...EMPTY_INPUT, jumpHeld: true, jumpJustPressed: true, crouch: true},
   });
   assert.equal(airborneAttempt.state, 'jumping');
   assert.equal(airborneAttempt.shouldJump, false);

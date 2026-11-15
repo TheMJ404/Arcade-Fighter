@@ -1,4 +1,13 @@
-export type VirtualControlButton = 'left' | 'right' | 'jump' | 'crouch';
+export type VirtualControlButton =
+  | 'left'
+  | 'right'
+  | 'jump'
+  | 'crouch'
+  | 'lightPunch'
+  | 'heavyPunch'
+  | 'lightKick'
+  | 'heavyKick'
+  | 'block';
 
 export interface DirectionalInputState {
   left: boolean;
@@ -6,6 +15,11 @@ export interface DirectionalInputState {
   jump: boolean;
   crouch: boolean;
   run: boolean;
+  lightPunch: boolean;
+  heavyPunch: boolean;
+  lightKick: boolean;
+  heavyKick: boolean;
+  block: boolean;
 }
 
 export interface FighterInputSnapshot {
@@ -15,6 +29,11 @@ export interface FighterInputSnapshot {
   jumpJustPressed: boolean;
   crouch: boolean;
   run: boolean;
+  lightPunchJustPressed: boolean;
+  heavyPunchJustPressed: boolean;
+  lightKickJustPressed: boolean;
+  heavyKickJustPressed: boolean;
+  blockHeld: boolean;
 }
 
 export const EMPTY_DIRECTIONAL_INPUT: DirectionalInputState = {
@@ -23,6 +42,11 @@ export const EMPTY_DIRECTIONAL_INPUT: DirectionalInputState = {
   jump: false,
   crouch: false,
   run: false,
+  lightPunch: false,
+  heavyPunch: false,
+  lightKick: false,
+  heavyKick: false,
+  block: false,
 };
 
 /**
@@ -37,7 +61,7 @@ export function resolveHorizontalAxis(left: boolean, right: boolean): -1 | 0 | 1
 
 /**
  * Combines keyboard and touch input states so either source can drive movement
- * simultaneously without overwriting the other.
+ * and combat actions simultaneously without overwriting the other.
  */
 export function mergeDirectionalInputs(
   keyboard: DirectionalInputState,
@@ -49,5 +73,10 @@ export function mergeDirectionalInputs(
     jump: keyboard.jump || touch.jump,
     crouch: keyboard.crouch || touch.crouch,
     run: keyboard.run || touch.run,
+    lightPunch: keyboard.lightPunch || touch.lightPunch,
+    heavyPunch: keyboard.heavyPunch || touch.heavyPunch,
+    lightKick: keyboard.lightKick || touch.lightKick,
+    heavyKick: keyboard.heavyKick || touch.heavyKick,
+    block: keyboard.block || touch.block,
   };
 }

@@ -70,6 +70,12 @@ export interface CharacterConfig {
     run: CharacterAnimationDef;
     jump: CharacterAnimationDef;
     crouch: CharacterAnimationDef;
+    lightPunch: CharacterAnimationDef;
+    heavyPunch: CharacterAnimationDef;
+    lightKick: CharacterAnimationDef;
+    heavyKick: CharacterAnimationDef;
+    block: CharacterAnimationDef;
+    hit: CharacterAnimationDef;
   };
 }
 
@@ -149,6 +155,54 @@ export const CHARACTER_REGISTRY: Record<CharacterId, CharacterConfig> = {
         startFrame: 0,
         endFrame: 3,
         frameRate: 14,
+        repeat: 0,
+      },
+      lightPunch: {
+        key: 'player1-light-punch',
+        textureKey: 'fighter-player1-light-punch',
+        startFrame: 0,
+        endFrame: 5,
+        frameRate: 19,
+        repeat: 0,
+      },
+      heavyPunch: {
+        key: 'player1-heavy-punch',
+        textureKey: 'fighter-player1-heavy-punch',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 14,
+        repeat: 0,
+      },
+      lightKick: {
+        key: 'player1-light-kick',
+        textureKey: 'fighter-player1-light-kick',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 20,
+        repeat: 0,
+      },
+      heavyKick: {
+        key: 'player1-heavy-kick',
+        textureKey: 'fighter-player1-heavy-kick',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 12,
+        repeat: 0,
+      },
+      block: {
+        key: 'player1-block',
+        textureKey: 'fighter-player1-block',
+        startFrame: 0,
+        endFrame: 3,
+        frameRate: 10,
+        repeat: -1,
+      },
+      hit: {
+        key: 'player1-hit',
+        textureKey: 'fighter-player1-hit',
+        startFrame: 0,
+        endFrame: 3,
+        frameRate: 15,
         repeat: 0,
       },
     },

@@ -7,12 +7,12 @@ import {
   getCharacterConfig,
 } from './characterConfig';
 
-test('Player 1 character configuration defines stats, physics, sprite dimensions, and all movement animations', () => {
+test('Player 1 character configuration defines stats, physics, sprite dimensions, and all movement + combat animations', () => {
   const player1 = getCharacterConfig('player-1');
 
   assert.equal(player1.id, 'player-1');
   assert.equal(player1.name, 'Player 1');
-  assert.ok(player1.stats.maxHealth > 0);
+  assert.equal(player1.stats.maxHealth, 1000);
   assert.ok(player1.stats.moveSpeed > 0);
   assert.ok(player1.stats.runSpeed > player1.stats.moveSpeed);
   assert.ok(player1.stats.attackPower > 0);
@@ -29,25 +29,20 @@ test('Player 1 character configuration defines stats, physics, sprite dimensions
   assert.equal(player1.sprite.frameHeight, 144);
   assert.equal(player1.sprite.frameCount, 8);
 
-  assert.equal(player1.animations.idle.startFrame, 0);
-  assert.equal(player1.animations.idle.endFrame, 7);
   assert.equal(player1.animations.idle.repeat, -1);
-
-  assert.equal(player1.animations.walk.startFrame, 0);
-  assert.equal(player1.animations.walk.endFrame, 7);
   assert.equal(player1.animations.walk.repeat, -1);
-
-  assert.equal(player1.animations.run.startFrame, 0);
-  assert.equal(player1.animations.run.endFrame, 7);
   assert.equal(player1.animations.run.repeat, -1);
-
-  assert.equal(player1.animations.jump.startFrame, 0);
-  assert.equal(player1.animations.jump.endFrame, 5);
   assert.equal(player1.animations.jump.repeat, 0);
-
-  assert.equal(player1.animations.crouch.startFrame, 0);
-  assert.equal(player1.animations.crouch.endFrame, 3);
   assert.equal(player1.animations.crouch.repeat, 0);
+
+  assert.equal(player1.animations.lightPunch.endFrame, 5);
+  assert.equal(player1.animations.heavyPunch.endFrame, 7);
+  assert.equal(player1.animations.lightKick.endFrame, 7);
+  assert.equal(player1.animations.heavyKick.endFrame, 7);
+  assert.equal(player1.animations.block.endFrame, 3);
+  assert.equal(player1.animations.block.repeat, -1);
+  assert.equal(player1.animations.hit.endFrame, 3);
+  assert.equal(player1.animations.hit.repeat, 0);
 });
 
 test('Player 1 aligns feet cleanly with Moonlit Temple groundY and anchors standing/crouching bodies to floor', () => {

@@ -11,6 +11,11 @@ export class VirtualInputBridge {
     jump: false,
     crouch: false,
     run: false,
+    lightPunch: false,
+    heavyPunch: false,
+    lightKick: false,
+    heavyKick: false,
+    block: false,
   };
 
   setButton(button: VirtualControlButton, pressed: boolean): void {
@@ -27,6 +32,11 @@ export class VirtualInputBridge {
     this.state.jump = false;
     this.state.crouch = false;
     this.state.run = false;
+    this.state.lightPunch = false;
+    this.state.heavyPunch = false;
+    this.state.lightKick = false;
+    this.state.heavyKick = false;
+    this.state.block = false;
   }
 }
 

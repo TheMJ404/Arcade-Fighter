@@ -1,4 +1,16 @@
 import Phaser from 'phaser';
+import {
+  FighterCombatState,
+  type FighterCombatAnimationKey,
+} from '../combat/FighterCombatState';
+import type {
+  AttackDefinition,
+  AttackId,
+  AttackPhase,
+  CombatantActor,
+  CombatState,
+  RectBox,
+} from '../combat/combatTypes';
 import type {ArenaBounds, ArenaSpawnPoint} from '../config/arenaConfig';
 import {
   computeCharacterGroundY,
@@ -22,26 +34,34 @@ export interface FighterBodySnapshot {
   onGround: boolean;
   isCrouching: boolean;
   state: FighterMovementState;
+  combatState: CombatState;
+  attackPhase: AttackPhase;
+  attackId: AttackId | null;
+  isBlocking: boolean;
+  isDefeated: boolean;
+  health: number;
+  maxHealth: number;
   facing: 'left' | 'right';
   animationKey: string;
 }
 
 /**
- * Arcade-physics fighter entity responsible for registering movement animations,
- * running the movement state machine, updating bottom-anchored standing/crouching
- * collision bodies, keeping grounded shadows synced, and enforcing arena bounds.
+ * Arcade-physics fighter entity coordinating movement physics, standing/crouching
+ * collision bodies, grounded shadow syncing, and modular CombatantActor integration.
  */
-export class FighterEntity {
+export class FighterEntity implements CombatantActor {
   private readonly scene: Phaser.Scene;
   private readonly config: CharacterConfig;
   private readonly sprite: Phaser.Physics.Arcade.Sprite;
   private readonly shadow: Phaser.GameObjects.Ellipse;
   private readonly groundY: number;
   private readonly arenaBounds: ArenaBounds;
+  private readonly combatState: FighterCombatState;
 
   private facing: 'left' | 'right';
   private movementState: FighterMovementState = 'idle';
   private isCrouching = false;
+  private activeAnimKey = '';
 
   constructor(
     scene: Phaser.Scene,
@@ -54,6 +74,7 @@ export class FighterEntity {
     this.facing = spawn.facing;
     this.arenaBounds = arenaBounds;
     this.groundY = computeCharacterGroundY(spawn.y, config.render.footOffsetY);
+    this.combatState = new FighterCombatState(config.stats.maxHealth);
 
     this.ensurePixelFiltering();
     this.registerAnimations();
@@ -84,16 +105,36 @@ export class FighterEntity {
     const body = this.getArcadeBody();
     body.setCollideWorldBounds(true);
     body.setGravityY(config.physics.gravityY);
-    body.setMaxVelocity(config.stats.runSpeed, 1200);
+    body.setMaxVelocity(Math.max(config.stats.runSpeed, 800), 1200);
     body.setDragX(config.physics.groundDrag);
 
     this.applyCollisionBody(false);
-    this.sprite.play(config.animations.idle.key);
+    this.playAnimationKey(config.animations.idle.key);
   }
 
-  update(input: FighterInputSnapshot): void {
+  update(input: FighterInputSnapshot, deltaMs: number = 16.67): void {
     const body = this.getArcadeBody();
     const onGround = body.blocked.down || body.touching.down || body.onFloor();
+
+    const combatStep = this.combatState.step(deltaMs, input, onGround);
+
+    if (combatStep.locksMovement) {
+      if (this.isCrouching) {
+        this.applyCollisionBody(false);
+      }
+
+      body.setAccelerationX(0);
+      body.setMaxVelocity(Math.max(this.config.stats.runSpeed, 800), 1200);
+      this.movementState = 'idle';
+
+      const targetAnimKey = this.resolveCombatAnimationKey(combatStep.animationKeyName);
+      if (targetAnimKey) {
+        this.playAnimationKey(targetAnimKey);
+      }
+
+      this.syncShadow(false);
+      return;
+    }
 
     const decision = evaluateFighterMovement({
       input,
@@ -121,7 +162,7 @@ export class FighterEntity {
       body.setAccelerationX(direction * accel);
     } else {
       body.setAccelerationX(0);
-      body.setMaxVelocity(this.config.stats.runSpeed, 1200);
+      body.setMaxVelocity(Math.max(this.config.stats.runSpeed, 800), 1200);
 
       if (decision.isCrouching && onGround && Math.abs(body.velocity.x) < 30) {
         body.setVelocityX(0);
@@ -144,13 +185,100 @@ export class FighterEntity {
     const targetAnim = this.config.animations[decision.animationKeyName];
     if (
       decision.state !== this.movementState ||
-      this.sprite.anims.currentAnim?.key !== targetAnim.key
+      this.activeAnimKey !== targetAnim.key
     ) {
-      this.sprite.play(targetAnim.key, true);
+      this.playAnimationKey(targetAnim.key);
       this.movementState = decision.state;
     }
 
     this.syncShadow(decision.isCrouching);
+  }
+
+  getCombatantId(): string {
+    return this.config.id;
+  }
+
+  getDisplayName(): string {
+    return this.config.name;
+  }
+
+  getPosition(): {x: number; y: number} {
+    return {x: this.sprite.x, y: this.sprite.y};
+  }
+
+  getFacing(): 'left' | 'right' {
+    return this.facing;
+  }
+
+  getHurtbox(): RectBox {
+    const body = this.getArcadeBody();
+    return {
+      x: body.x,
+      y: body.y,
+      width: body.width,
+      height: body.height,
+    };
+  }
+
+  getHealth(): number {
+    return this.combatState.getHealth();
+  }
+
+  getMaxHealth(): number {
+    return this.combatState.getMaxHealth();
+  }
+
+  isBlocking(): boolean {
+    return this.combatState.isBlocking();
+  }
+
+  isDefeated(): boolean {
+    return this.combatState.isDefeated();
+  }
+
+  getActiveAttack(): {
+    activationId: number;
+    attack: AttackDefinition;
+    hasHitTarget: (targetId: string) => boolean;
+    markTargetHit: (targetId: string) => void;
+  } | null {
+    const controller = this.combatState.getAttackController();
+    const attack = controller.getCurrentAttack();
+    if (!controller.isHitboxActive() || !attack) {
+      return null;
+    }
+    return {
+      activationId: controller.getActivationId(),
+      attack,
+      hasHitTarget: (id) => controller.hasHitTarget(id),
+      markTargetHit: (id) => controller.markTargetHit(id),
+    };
+  }
+
+  applyCombatImpact(impact: {
+    damage: number;
+    wasBlocked: boolean;
+    knockbackVelocityX: number;
+    stunDurationMs: number;
+  }): {remainingHealth: number; defeated: boolean} {
+    const result = this.combatState.applyImpact({
+      damage: impact.damage,
+      wasBlocked: impact.wasBlocked,
+      stunDurationMs: impact.stunDurationMs,
+    });
+
+    const body = this.getArcadeBody();
+    body.setMaxVelocity(Math.max(this.config.stats.runSpeed, 800), 1200);
+    body.setAccelerationX(0);
+    body.setVelocityX(impact.knockbackVelocityX);
+
+    if (impact.wasBlocked) {
+      this.playAnimationKey(this.config.animations.block.key);
+    } else {
+      this.playAnimationKey(this.config.animations.hit.key, true);
+    }
+
+    return result;
   }
 
   getConfig(): CharacterConfig {
@@ -159,10 +287,6 @@ export class FighterEntity {
 
   getSprite(): Phaser.Physics.Arcade.Sprite {
     return this.sprite;
-  }
-
-  getFacing(): 'left' | 'right' {
-    return this.facing;
   }
 
   getMovementState(): FighterMovementState {
@@ -176,6 +300,19 @@ export class FighterEntity {
   getBodySnapshot(): FighterBodySnapshot {
     const body = this.getArcadeBody();
     const onGround = body.blocked.down || body.touching.down || body.onFloor();
+    const attackSnap = this.combatState.getAttackController().getSnapshot();
+
+    let combatState: CombatState = 'none';
+    if (this.combatState.isDefeated()) {
+      combatState = 'defeated';
+    } else if (attackSnap.phase !== 'ready') {
+      combatState = 'attacking';
+    } else if (this.combatState.isBlocking()) {
+      combatState = 'blocking';
+    } else if (this.activeAnimKey === this.config.animations.hit.key) {
+      combatState = 'hitstun';
+    }
+
     return {
       x: Math.round(this.sprite.x * 100) / 100,
       y: Math.round(this.sprite.y * 100) / 100,
@@ -187,6 +324,13 @@ export class FighterEntity {
       onGround,
       isCrouching: this.isCrouching,
       state: this.movementState,
+      combatState,
+      attackPhase: attackSnap.phase,
+      attackId: attackSnap.attackId,
+      isBlocking: this.combatState.isBlocking(),
+      isDefeated: this.combatState.isDefeated(),
+      health: this.combatState.getHealth(),
+      maxHealth: this.combatState.getMaxHealth(),
       facing: this.facing,
       animationKey: this.sprite.anims.currentAnim?.key ?? '',
     };
@@ -195,6 +339,21 @@ export class FighterEntity {
   destroy(): void {
     this.shadow.destroy();
     this.sprite.destroy();
+  }
+
+  private resolveCombatAnimationKey(keyName: FighterCombatAnimationKey): string | null {
+    if (!keyName) {
+      return null;
+    }
+    return this.config.animations[keyName].key;
+  }
+
+  private playAnimationKey(key: string, forceRestart: boolean = false): void {
+    if (!forceRestart && this.activeAnimKey === key && this.sprite.anims.currentAnim?.key === key) {
+      return;
+    }
+    this.activeAnimKey = key;
+    this.sprite.play(key, !forceRestart);
   }
 
   private getArcadeBody(): Phaser.Physics.Arcade.Body {
