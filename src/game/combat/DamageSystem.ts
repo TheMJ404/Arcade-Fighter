@@ -7,21 +7,37 @@ import type {
   DamageCalculationResult,
 } from './combatTypes';
 
+export interface DamageScalingOptions {
+  attackerAttackPower?: number;
+  defenderDefense?: number;
+}
+
 /**
  * Centralized damage, health clamping, block reduction, and knockback math.
+ * Outgoing damage scales by (attackPower / 100) and incoming damage scales
+ * inversely by defense via (100 / defense). Defaults (100 / 100) preserve
+ * the exact Phase 5 baseline values.
  */
 export function calculateAttackDamage(
   attack: AttackDefinition,
   isTargetBlocking: boolean,
   config: CombatBalanceConfig = DEFAULT_COMBAT_CONFIG,
+  scaling: DamageScalingOptions = {},
 ): DamageCalculationResult {
-  const rawDamage = Math.max(0, attack.damage);
+  const baseDamage = Math.max(0, attack.damage);
+  const attackPower = Math.max(1, scaling.attackerAttackPower ?? 100);
+  const defense = Math.max(1, scaling.defenderDefense ?? 100);
+  const scaledDamage =
+    baseDamage > 0
+      ? Math.max(1, Math.round(baseDamage * (attackPower / 100) * (100 / defense)))
+      : 0;
+
   const effectiveBlock = isTargetBlocking && attack.blockable;
 
   if (!effectiveBlock) {
     return {
-      rawDamage,
-      finalDamage: rawDamage,
+      rawDamage: scaledDamage,
+      finalDamage: scaledDamage,
       wasBlocked: false,
       knockbackStrength: attack.knockbackStrength,
       stunDurationMs: attack.hitstunMs,
@@ -29,15 +45,15 @@ export function calculateAttackDamage(
   }
 
   const reducedDamage =
-    rawDamage > 0
+    scaledDamage > 0
       ? Math.max(
           config.minimumBlockChipDamage,
-          Math.round(rawDamage * config.blockDamageMultiplier),
+          Math.round(scaledDamage * config.blockDamageMultiplier),
         )
       : 0;
 
   return {
-    rawDamage,
+    rawDamage: scaledDamage,
     finalDamage: reducedDamage,
     wasBlocked: true,
     knockbackStrength: Math.round(

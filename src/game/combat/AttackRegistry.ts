@@ -1,6 +1,10 @@
-import type {AttackDefinition, AttackId} from './combatTypes';
+import type {
+  AttackDefinition,
+  AttackId,
+  CharacterAttackOverrides,
+} from './combatTypes';
 
-export const ATTACK_REGISTRY: Record<AttackId, AttackDefinition> = {
+export const ATTACK_REGISTRY: Readonly<Record<AttackId, Readonly<AttackDefinition>>> = {
   'light-punch': {
     id: 'light-punch',
     displayName: 'Light Punch',
@@ -81,6 +85,21 @@ export const ATTACK_REGISTRY: Record<AttackId, AttackDefinition> = {
 
 export function getAttackDefinition(id: AttackId): AttackDefinition {
   return ATTACK_REGISTRY[id];
+}
+
+export function resolveAttackDefinition(
+  id: AttackId,
+  overrides?: CharacterAttackOverrides,
+): AttackDefinition {
+  const base = ATTACK_REGISTRY[id];
+  const override = overrides?.[id];
+  if (!override) {
+    return base;
+  }
+  return {
+    ...base,
+    ...override,
+  };
 }
 
 export function getAllAttackDefinitions(): AttackDefinition[] {

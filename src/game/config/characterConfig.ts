@@ -1,4 +1,12 @@
-export type CharacterId = 'player-1';
+import type {CharacterAttackOverrides} from '../combat/combatTypes';
+
+export type CharacterId = 'player-1' | 'player-2' | 'player-3';
+
+export const VALID_CHARACTER_IDS: readonly CharacterId[] = [
+  'player-1',
+  'player-2',
+  'player-3',
+];
 
 export interface CharacterStats {
   maxHealth: number;
@@ -53,6 +61,7 @@ export interface CharacterConfig {
   name: string;
   stats: CharacterStats;
   physics: CharacterPhysicsConfig;
+  attackOverrides?: CharacterAttackOverrides;
   facing: {
     /** Reserved for future opponent auto-facing once P2 / CPU fighters are added */
     autoFaceOpponent: boolean;
@@ -207,10 +216,353 @@ export const CHARACTER_REGISTRY: Record<CharacterId, CharacterConfig> = {
       },
     },
   },
+  'player-2': {
+    id: 'player-2',
+    name: 'Player 2',
+    stats: {
+      maxHealth: 950,
+      moveSpeed: 268,
+      runSpeed: 448,
+      attackPower: 95,
+      defense: 95,
+    },
+    physics: {
+      groundAcceleration: 2750,
+      groundDrag: 2800,
+      airAcceleration: 1650,
+      jumpVelocity: -665,
+      gravityY: 1650,
+      standingBody: {width: 50, height: 112},
+      crouchingBody: {width: 54, height: 74},
+    },
+    attackOverrides: {
+      'light-punch': {
+        startupMs: 65,
+        activeMs: 85,
+        recoveryMs: 115,
+        knockbackStrength: 135,
+        hitstunMs: 200,
+        blockstunMs: 120,
+      },
+      'heavy-punch': {
+        startupMs: 150,
+        activeMs: 120,
+        recoveryMs: 215,
+        knockbackStrength: 270,
+        hitstunMs: 310,
+        blockstunMs: 180,
+      },
+      'light-kick': {
+        startupMs: 90,
+        activeMs: 105,
+        recoveryMs: 145,
+        knockbackStrength: 175,
+        hitstunMs: 230,
+        blockstunMs: 135,
+      },
+      'heavy-kick': {
+        startupMs: 185,
+        activeMs: 130,
+        recoveryMs: 260,
+        knockbackStrength: 330,
+        hitstunMs: 370,
+        blockstunMs: 210,
+      },
+    },
+    facing: {
+      autoFaceOpponent: false,
+    },
+    sprite: {
+      textureKey: 'fighter-player2-idle',
+      frameWidth: 144,
+      frameHeight: 144,
+      frameCount: 8,
+    },
+    render: {
+      scale: 2,
+      originX: 0.5,
+      originY: 1,
+      footOffsetY: 0,
+      shadowWidth: 172,
+      shadowHeight: 22,
+    },
+    animations: {
+      idle: {
+        key: 'player2-idle',
+        textureKey: 'fighter-player2-idle',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 11,
+        repeat: -1,
+      },
+      walk: {
+        key: 'player2-walk',
+        textureKey: 'fighter-player2-walk',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 13,
+        repeat: -1,
+      },
+      run: {
+        key: 'player2-run',
+        textureKey: 'fighter-player2-run',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 17,
+        repeat: -1,
+      },
+      jump: {
+        key: 'player2-jump',
+        textureKey: 'fighter-player2-jump',
+        startFrame: 0,
+        endFrame: 5,
+        frameRate: 11,
+        repeat: 0,
+      },
+      crouch: {
+        key: 'player2-crouch',
+        textureKey: 'fighter-player2-crouch',
+        startFrame: 0,
+        endFrame: 3,
+        frameRate: 15,
+        repeat: 0,
+      },
+      lightPunch: {
+        key: 'player2-light-punch',
+        textureKey: 'fighter-player2-light-punch',
+        startFrame: 0,
+        endFrame: 5,
+        frameRate: 22,
+        repeat: 0,
+      },
+      heavyPunch: {
+        key: 'player2-heavy-punch',
+        textureKey: 'fighter-player2-heavy-punch',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 16,
+        repeat: 0,
+      },
+      lightKick: {
+        key: 'player2-light-kick',
+        textureKey: 'fighter-player2-light-kick',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 23,
+        repeat: 0,
+      },
+      heavyKick: {
+        key: 'player2-heavy-kick',
+        textureKey: 'fighter-player2-heavy-kick',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 14,
+        repeat: 0,
+      },
+      block: {
+        key: 'player2-block',
+        textureKey: 'fighter-player2-block',
+        startFrame: 0,
+        endFrame: 3,
+        frameRate: 10,
+        repeat: -1,
+      },
+      hit: {
+        key: 'player2-hit',
+        textureKey: 'fighter-player2-hit',
+        startFrame: 0,
+        endFrame: 3,
+        frameRate: 15,
+        repeat: 0,
+      },
+    },
+  },
+  'player-3': {
+    id: 'player-3',
+    name: 'Player 3',
+    stats: {
+      maxHealth: 1120,
+      moveSpeed: 208,
+      runSpeed: 358,
+      attackPower: 118,
+      defense: 115,
+    },
+    physics: {
+      groundAcceleration: 2050,
+      groundDrag: 2450,
+      airAcceleration: 1300,
+      jumpVelocity: -595,
+      gravityY: 1720,
+      standingBody: {width: 56, height: 114},
+      crouchingBody: {width: 60, height: 76},
+    },
+    attackOverrides: {
+      'light-punch': {
+        startupMs: 95,
+        activeMs: 95,
+        recoveryMs: 165,
+        hitboxWidth: 78,
+        knockbackStrength: 175,
+        hitstunMs: 250,
+        blockstunMs: 145,
+      },
+      'heavy-punch': {
+        startupMs: 215,
+        activeMs: 140,
+        recoveryMs: 300,
+        hitboxWidth: 96,
+        knockbackStrength: 355,
+        hitstunMs: 380,
+        blockstunMs: 225,
+      },
+      'light-kick': {
+        startupMs: 130,
+        activeMs: 120,
+        recoveryMs: 210,
+        hitboxWidth: 96,
+        knockbackStrength: 220,
+        hitstunMs: 280,
+        blockstunMs: 170,
+      },
+      'heavy-kick': {
+        startupMs: 260,
+        activeMs: 150,
+        recoveryMs: 350,
+        hitboxWidth: 116,
+        knockbackStrength: 430,
+        hitstunMs: 440,
+        blockstunMs: 260,
+      },
+    },
+    facing: {
+      autoFaceOpponent: false,
+    },
+    sprite: {
+      textureKey: 'fighter-player3-idle',
+      frameWidth: 144,
+      frameHeight: 144,
+      frameCount: 8,
+    },
+    render: {
+      scale: 2,
+      originX: 0.5,
+      originY: 1,
+      footOffsetY: 0,
+      shadowWidth: 184,
+      shadowHeight: 22,
+    },
+    animations: {
+      idle: {
+        key: 'player3-idle',
+        textureKey: 'fighter-player3-idle',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 9,
+        repeat: -1,
+      },
+      walk: {
+        key: 'player3-walk',
+        textureKey: 'fighter-player3-walk',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 11,
+        repeat: -1,
+      },
+      run: {
+        key: 'player3-run',
+        textureKey: 'fighter-player3-run',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 14,
+        repeat: -1,
+      },
+      jump: {
+        key: 'player3-jump',
+        textureKey: 'fighter-player3-jump',
+        startFrame: 0,
+        endFrame: 5,
+        frameRate: 9,
+        repeat: 0,
+      },
+      crouch: {
+        key: 'player3-crouch',
+        textureKey: 'fighter-player3-crouch',
+        startFrame: 0,
+        endFrame: 3,
+        frameRate: 13,
+        repeat: 0,
+      },
+      lightPunch: {
+        key: 'player3-light-punch',
+        textureKey: 'fighter-player3-light-punch',
+        startFrame: 0,
+        endFrame: 5,
+        frameRate: 17,
+        repeat: 0,
+      },
+      heavyPunch: {
+        key: 'player3-heavy-punch',
+        textureKey: 'fighter-player3-heavy-punch',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 12,
+        repeat: 0,
+      },
+      lightKick: {
+        key: 'player3-light-kick',
+        textureKey: 'fighter-player3-light-kick',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 17,
+        repeat: 0,
+      },
+      heavyKick: {
+        key: 'player3-heavy-kick',
+        textureKey: 'fighter-player3-heavy-kick',
+        startFrame: 0,
+        endFrame: 7,
+        frameRate: 11,
+        repeat: 0,
+      },
+      block: {
+        key: 'player3-block',
+        textureKey: 'fighter-player3-block',
+        startFrame: 0,
+        endFrame: 3,
+        frameRate: 10,
+        repeat: -1,
+      },
+      hit: {
+        key: 'player3-hit',
+        textureKey: 'fighter-player3-hit',
+        startFrame: 0,
+        endFrame: 3,
+        frameRate: 14,
+        repeat: 0,
+      },
+    },
+  },
 };
+
+export function isCharacterId(value: string | null | undefined): value is CharacterId {
+  return value === 'player-1' || value === 'player-2' || value === 'player-3';
+}
+
+export function resolveFighterIdFromSearch(search: string): CharacterId {
+  if (!search) {
+    return 'player-1';
+  }
+  const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`);
+  const requested = params.get('fighter')?.trim().toLowerCase();
+  return isCharacterId(requested) ? requested : 'player-1';
+}
 
 export function getCharacterConfig(id: CharacterId = 'player-1'): CharacterConfig {
   return CHARACTER_REGISTRY[id];
+}
+
+export function getAllCharacterConfigs(): CharacterConfig[] {
+  return VALID_CHARACTER_IDS.map((id) => CHARACTER_REGISTRY[id]);
 }
 
 export function computeCharacterGroundY(arenaGroundY: number, footOffsetY: number = 0): number {

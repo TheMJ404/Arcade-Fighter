@@ -3,6 +3,7 @@
  * and React components. Keeps Phaser internals out of React state.
  */
 import type {AttackId, HitImpactEvent} from '../combat/combatTypes';
+import type {CharacterId} from '../config/characterConfig';
 
 export interface GameEventMap {
   'scene:ready': {
@@ -21,6 +22,14 @@ export interface GameEventMap {
   };
   'viewport:resized': {width: number; height: number};
   'game:destroyed': {timestamp: number};
+  'fighter:switchRequested': {fighterId: CharacterId};
+  'fighter:changed': {
+    fighterId: CharacterId;
+    name: string;
+    maxHealth: number;
+    attackPower: number;
+    defense: number;
+  };
   'combat:hit': HitImpactEvent;
   'combat:healthChanged': {
     combatantId: string;

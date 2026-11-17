@@ -32,6 +32,15 @@ export class CombatManager {
     this.hitboxManager.clearHitbox(combatantId);
   }
 
+  getCombatantIds(): string[] {
+    return [...this.combatants.keys()];
+  }
+
+  resetCombatState(): void {
+    this.hitboxManager.clearAll();
+    this.lastHitEvent = null;
+  }
+
   getActiveHitboxes(): ActiveHitboxDescriptor[] {
     const result: ActiveHitboxDescriptor[] = [];
     for (const combatant of this.combatants.values()) {
@@ -114,6 +123,10 @@ export class CombatManager {
           active.attack,
           defender.isBlocking(),
           this.config,
+          {
+            attackerAttackPower: attacker.getAttackPower?.() ?? 100,
+            defenderDefense: defender.getDefense?.() ?? 100,
+          },
         );
 
         const knockbackSign = descriptor.facing === 'right' ? 1 : -1;

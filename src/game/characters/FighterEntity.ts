@@ -74,7 +74,10 @@ export class FighterEntity implements CombatantActor {
     this.facing = spawn.facing;
     this.arenaBounds = arenaBounds;
     this.groundY = computeCharacterGroundY(spawn.y, config.render.footOffsetY);
-    this.combatState = new FighterCombatState(config.stats.maxHealth);
+    this.combatState = new FighterCombatState(
+      config.stats.maxHealth,
+      config.attackOverrides,
+    );
 
     this.ensurePixelFiltering();
     this.registerAnimations();
@@ -226,6 +229,14 @@ export class FighterEntity implements CombatantActor {
 
   getMaxHealth(): number {
     return this.combatState.getMaxHealth();
+  }
+
+  getAttackPower(): number {
+    return this.config.stats.attackPower;
+  }
+
+  getDefense(): number {
+    return this.config.stats.defense;
   }
 
   isBlocking(): boolean {

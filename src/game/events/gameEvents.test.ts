@@ -40,3 +40,32 @@ test('GameEventBus isolates events and clears all listeners', () => {
   bus.clear();
   assert.equal(bus.listenerCount(), 0);
 });
+
+test('GameEventBus delivers fighter:switchRequested and fighter:changed payloads cleanly', () => {
+  const bus = new GameEventBus();
+  const requests: string[] = [];
+  const changes: Array<{fighterId: string; maxHealth: number}> = [];
+
+  const unsubReq = bus.on('fighter:switchRequested', ({fighterId}) => {
+    requests.push(fighterId);
+  });
+  const unsubChanged = bus.on('fighter:changed', ({fighterId, maxHealth}) => {
+    changes.push({fighterId, maxHealth});
+  });
+
+  bus.emit('fighter:switchRequested', {fighterId: 'player-2'});
+  bus.emit('fighter:changed', {
+    fighterId: 'player-2',
+    name: 'Player 2',
+    maxHealth: 950,
+    attackPower: 95,
+    defense: 95,
+  });
+
+  assert.deepEqual(requests, ['player-2']);
+  assert.deepEqual(changes, [{fighterId: 'player-2', maxHealth: 950}]);
+
+  unsubReq();
+  unsubChanged();
+  assert.equal(bus.listenerCount(), 0);
+});

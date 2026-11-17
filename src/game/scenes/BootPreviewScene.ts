@@ -14,7 +14,12 @@ import {
   calculateCoverScale,
   getArenaConfig,
 } from '../config/arenaConfig';
-import {getCharacterConfig} from '../config/characterConfig';
+import {
+  type CharacterId,
+  getCharacterConfig,
+  isCharacterId,
+  resolveFighterIdFromSearch,
+} from '../config/characterConfig';
 import {GAME_HEIGHT, GAME_WIDTH, SCENE_KEYS} from '../config/constants';
 import {gameEvents} from '../events/gameEvents';
 import {InputManager} from '../input/InputManager';
@@ -44,12 +49,15 @@ interface LanternPulse {
  */
 export class BootPreviewScene extends Phaser.Scene {
   private arenaConfig: ArenaConfig;
+  private activeFighterId: CharacterId = 'player-1';
   private player1: FighterEntity | null = null;
   private trainingDummy: TrainingDummyEntity | null = null;
   private combatManager: CombatManager | null = null;
   private inputManager: InputManager | null = null;
   private tempHealthReadout: Phaser.GameObjects.Text | null = null;
   private unsubHitEvent: (() => void) | null = null;
+  private unsubSwitchEvent: (() => void) | null = null;
+  private activeImpactObjects = new Set<Phaser.GameObjects.GameObject>();
   private petals: DriftingPetal[] = [];
   private lanternPulses: LanternPulse[] = [];
   private elapsedSeconds = 0;
@@ -63,7 +71,15 @@ export class BootPreviewScene extends Phaser.Scene {
     return this.arenaConfig;
   }
 
+  getActiveFighterId(): CharacterId {
+    return this.activeFighterId;
+  }
+
   getPlayer1Snapshot(): FighterBodySnapshot | null {
+    return this.player1?.getBodySnapshot() ?? null;
+  }
+
+  getActiveFighterSnapshot(): FighterBodySnapshot | null {
     return this.player1?.getBodySnapshot() ?? null;
   }
 
@@ -72,12 +88,16 @@ export class BootPreviewScene extends Phaser.Scene {
   }
 
   getCombatDebugSnapshot(): {
+    activeFighterId: CharacterId;
+    registeredCombatantIds: string[];
     player1: FighterBodySnapshot | null;
     dummy: TrainingDummySnapshot | null;
     activeHitboxes: ActiveHitboxDescriptor[];
     lastHitEvent: HitImpactEvent | null;
   } {
     return {
+      activeFighterId: this.activeFighterId,
+      registeredCombatantIds: this.combatManager?.getCombatantIds() ?? [],
       player1: this.getPlayer1Snapshot(),
       dummy: this.getTrainingDummySnapshot(),
       activeHitboxes: this.combatManager?.getActiveHitboxes() ?? [],
@@ -87,6 +107,34 @@ export class BootPreviewScene extends Phaser.Scene {
 
   setTrainingDummyBlocking(enabled: boolean): void {
     this.trainingDummy?.setBlocking(enabled);
+  }
+
+  switchActiveFighter(nextFighterId: CharacterId): void {
+    const resolvedId: CharacterId = isCharacterId(nextFighterId) ? nextFighterId : 'player-1';
+
+    if (this.player1) {
+      this.combatManager?.unregisterCombatant(this.player1.getCombatantId());
+      this.player1.destroy();
+      this.player1 = null;
+    }
+
+    this.inputManager?.resetAllInputs();
+    this.clearImpactEffects();
+    this.combatManager?.resetCombatState();
+    this.trainingDummy?.resetToInitialState(this.arenaConfig.spawnPoints.player2);
+
+    this.activeFighterId = resolvedId;
+    const fighterConfig = getCharacterConfig(this.activeFighterId);
+    this.player1 = new FighterEntity(
+      this,
+      fighterConfig,
+      this.arenaConfig.spawnPoints.player1,
+      this.arenaConfig.bounds,
+    );
+    this.combatManager?.registerCombatant(this.player1);
+
+    this.refreshTemporaryHealthReadout();
+    this.emitActiveFighterChanged(fighterConfig);
   }
 
   preload(): void {
@@ -107,7 +155,12 @@ export class BootPreviewScene extends Phaser.Scene {
   create(): void {
     this.petals = [];
     this.lanternPulses = [];
+    this.activeImpactObjects.clear();
     this.elapsedSeconds = 0;
+    this.activeFighterId =
+      typeof window !== 'undefined'
+        ? resolveFighterIdFromSearch(window.location.search)
+        : 'player-1';
 
     const {bounds} = this.arenaConfig;
     this.physics.world.setBounds(
@@ -124,10 +177,15 @@ export class BootPreviewScene extends Phaser.Scene {
     this.combatManager = new CombatManager(DEFAULT_COMBAT_CONFIG);
     this.spawnCharacters();
     this.createTemporaryHealthReadout();
+    this.emitActiveFighterChanged(getCharacterConfig(this.activeFighterId));
 
     this.unsubHitEvent = gameEvents.on('combat:hit', (impact) => {
       this.spawnHitImpactFeedback(impact);
       this.refreshTemporaryHealthReadout();
+    });
+
+    this.unsubSwitchEvent = gameEvents.on('fighter:switchRequested', ({fighterId}) => {
+      this.switchActiveFighter(fighterId);
     });
 
     this.scale.on('resize', this.handleScaleResize, this);
@@ -135,6 +193,9 @@ export class BootPreviewScene extends Phaser.Scene {
       this.scale.off('resize', this.handleScaleResize, this);
       this.unsubHitEvent?.();
       this.unsubHitEvent = null;
+      this.unsubSwitchEvent?.();
+      this.unsubSwitchEvent = null;
+      this.clearImpactEffects();
       this.combatManager?.destroy();
       this.combatManager = null;
       this.inputManager?.destroy();
@@ -248,10 +309,10 @@ export class BootPreviewScene extends Phaser.Scene {
   }
 
   private spawnCharacters(): void {
-    const player1Config = getCharacterConfig('player-1');
+    const fighterConfig = getCharacterConfig(this.activeFighterId);
     this.player1 = new FighterEntity(
       this,
-      player1Config,
+      fighterConfig,
       this.arenaConfig.spawnPoints.player1,
       this.arenaConfig.bounds,
     );
@@ -284,9 +345,33 @@ export class BootPreviewScene extends Phaser.Scene {
     if (!this.tempHealthReadout || !this.player1 || !this.trainingDummy) {
       return;
     }
-    const p1Hp = `${this.player1.getHealth()}/${this.player1.getMaxHealth()}`;
+    const tag =
+      this.activeFighterId === 'player-2'
+        ? 'P2'
+        : this.activeFighterId === 'player-3'
+          ? 'P3'
+          : 'P1';
+    const fighterHp = `${this.player1.getHealth()}/${this.player1.getMaxHealth()}`;
     const dummyHp = `${this.trainingDummy.getHealth()}/${this.trainingDummy.getMaxHealth()}`;
-    this.tempHealthReadout.setText(`P1 HP: ${p1Hp}   |   DUMMY HP: ${dummyHp}`);
+    this.tempHealthReadout.setText(`${tag} HP: ${fighterHp}   |   DUMMY HP: ${dummyHp}`);
+  }
+
+  private emitActiveFighterChanged(config: ReturnType<typeof getCharacterConfig>): void {
+    gameEvents.emit('fighter:changed', {
+      fighterId: config.id,
+      name: config.name,
+      maxHealth: config.stats.maxHealth,
+      attackPower: config.stats.attackPower,
+      defense: config.stats.defense,
+    });
+  }
+
+  private clearImpactEffects(): void {
+    for (const obj of this.activeImpactObjects) {
+      this.tweens.killTweensOf(obj);
+      obj.destroy();
+    }
+    this.activeImpactObjects.clear();
   }
 
   private spawnHitImpactFeedback(impact: HitImpactEvent): void {
@@ -294,6 +379,7 @@ export class BootPreviewScene extends Phaser.Scene {
     const spark = this.add
       .circle(impact.impactX, impact.impactY, impact.wasBlocked ? 14 : 18, sparkColor, 0.75)
       .setDepth(6);
+    this.activeImpactObjects.add(spark);
 
     const damageLabel = impact.wasBlocked
       ? `BLOCKED -${impact.damageApplied}`
@@ -309,13 +395,17 @@ export class BootPreviewScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0.5)
       .setDepth(6);
+    this.activeImpactObjects.add(popup);
 
     this.tweens.add({
       targets: spark,
       scale: 1.7,
       alpha: 0,
       duration: 180,
-      onComplete: () => spark.destroy(),
+      onComplete: () => {
+        this.activeImpactObjects.delete(spark);
+        spark.destroy();
+      },
     });
 
     this.tweens.add({
@@ -323,7 +413,10 @@ export class BootPreviewScene extends Phaser.Scene {
       y: impact.impactY - 56,
       alpha: 0,
       duration: 520,
-      onComplete: () => popup.destroy(),
+      onComplete: () => {
+        this.activeImpactObjects.delete(popup);
+        popup.destroy();
+      },
     });
   }
 

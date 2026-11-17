@@ -89,6 +89,24 @@ export interface HitImpactEvent {
   impactY: number;
 }
 
+export type AttackOverride = Partial<
+  Pick<
+    AttackDefinition,
+    | 'startupMs'
+    | 'activeMs'
+    | 'recoveryMs'
+    | 'hitboxWidth'
+    | 'hitboxHeight'
+    | 'hitboxOffsetX'
+    | 'hitboxOffsetY'
+    | 'knockbackStrength'
+    | 'hitstunMs'
+    | 'blockstunMs'
+  >
+>;
+
+export type CharacterAttackOverrides = Partial<Record<AttackId, AttackOverride>>;
+
 /**
  * Shared combat participant contract allowing any playable fighter or
  * temporary training opponent to participate cleanly in CombatManager.
@@ -101,6 +119,8 @@ export interface CombatantActor {
   getHurtbox(): RectBox;
   getHealth(): number;
   getMaxHealth(): number;
+  getAttackPower?(): number;
+  getDefense?(): number;
   isBlocking(): boolean;
   isDefeated(): boolean;
   getActiveAttack(): {

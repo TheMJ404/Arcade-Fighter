@@ -140,6 +140,30 @@ export class TrainingDummyEntity implements CombatantActor {
     this.blocking = enabled;
   }
 
+  resetToInitialState(spawn: ArenaSpawnPoint): void {
+    this.health = this.maxHealth;
+    this.blocking = false;
+    this.stunRemainingMs = 0;
+    this.flashRemainingMs = 0;
+    this.facing = spawn.facing;
+
+    this.sprite.clearTint();
+    this.sprite.setAlpha(1);
+    this.sprite.setAngle(0);
+    this.sprite.setFrame(0);
+    this.sprite.setFlipX(this.facing === 'left');
+    this.sprite.setPosition(Math.round(spawn.x), this.groundY);
+
+    const body = this.getArcadeBody();
+    body.setVelocity(0, 0);
+    body.setAcceleration(0, 0);
+
+    this.shadow.setPosition(Math.round(this.sprite.x), this.groundY - 2);
+    this.healthLabel.setPosition(Math.round(this.sprite.x), Math.round(this.sprite.y - 246));
+    this.healthLabel.setColor('#f4e8c1');
+    this.healthLabel.setText(this.formatLabel());
+  }
+
   getCombatantId(): string {
     return this.id;
   }

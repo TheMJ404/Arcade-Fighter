@@ -1,11 +1,12 @@
 import type {FighterInputSnapshot} from '../input/inputTypes';
 import {AttackController} from './AttackController';
-import {getAttackDefinition} from './AttackRegistry';
+import {resolveAttackDefinition} from './AttackRegistry';
 import {evaluateBlockState} from './BlockingSystem';
 import type {
   AttackDefinition,
   AttackId,
   AttackPhase,
+  CharacterAttackOverrides,
   CombatState,
 } from './combatTypes';
 import {applyHealthChange, isHealthDepleted} from './DamageSystem';
@@ -35,14 +36,16 @@ export interface FighterCombatStepResult {
  */
 export class FighterCombatState {
   private readonly maxHealth: number;
+  private readonly attackOverrides?: CharacterAttackOverrides;
   private health: number;
   private readonly attackController = new AttackController();
   private stunRemainingMs = 0;
   private stunKind: 'hit' | 'block' = 'hit';
   private blocking = false;
 
-  constructor(maxHealth: number) {
+  constructor(maxHealth: number, attackOverrides?: CharacterAttackOverrides) {
     this.maxHealth = Math.max(1, maxHealth);
+    this.attackOverrides = attackOverrides;
     this.health = this.maxHealth;
   }
 
@@ -186,16 +189,16 @@ export class FighterCombatState {
 
   private pickRequestedAttack(input: FighterInputSnapshot): AttackDefinition | null {
     if (input.heavyKickJustPressed) {
-      return getAttackDefinition('heavy-kick');
+      return resolveAttackDefinition('heavy-kick', this.attackOverrides);
     }
     if (input.lightKickJustPressed) {
-      return getAttackDefinition('light-kick');
+      return resolveAttackDefinition('light-kick', this.attackOverrides);
     }
     if (input.heavyPunchJustPressed) {
-      return getAttackDefinition('heavy-punch');
+      return resolveAttackDefinition('heavy-punch', this.attackOverrides);
     }
     if (input.lightPunchJustPressed) {
-      return getAttackDefinition('light-punch');
+      return resolveAttackDefinition('light-punch', this.attackOverrides);
     }
     return null;
   }
