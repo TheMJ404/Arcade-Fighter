@@ -21,9 +21,9 @@ test('Player 1 character configuration preserves exact Phase 5 stats, physics, s
   assert.equal(player1.stats.defense, 100);
   assert.equal(player1.attackOverrides, undefined);
 
-  assert.equal(player1.physics.groundAcceleration, 2400);
-  assert.equal(player1.physics.groundDrag, 2600);
-  assert.equal(player1.physics.airAcceleration, 1500);
+  assert.equal(player1.physics.groundAcceleration, 2750);
+  assert.equal(player1.physics.groundDrag, 2800);
+  assert.equal(player1.physics.airAcceleration, 1650);
   assert.equal(player1.physics.jumpVelocity, -640);
   assert.equal(player1.physics.gravityY, 1650);
   assert.deepEqual(player1.physics.standingBody, {width: 52, height: 112});
@@ -52,7 +52,7 @@ test('Player 1 character configuration preserves exact Phase 5 stats, physics, s
   assert.equal(player1.animations.hit.repeat, 0);
 });
 
-test('Player 2 and Player 3 configurations define distinct balanced stats and all 11 animations each', () => {
+test('All three fighters share identical combat and movement physics while preserving distinct visual animations', () => {
   const all = getAllCharacterConfigs();
   assert.equal(all.length, 3);
 
@@ -60,13 +60,14 @@ test('Player 2 and Player 3 configurations define distinct balanced stats and al
   const p2 = getCharacterConfig('player-2');
   const p3 = getCharacterConfig('player-3');
 
-  // Stat identity: P2 is faster/agile with slightly less HP; P3 is heavier/stronger with higher HP & defense
-  assert.ok(p2.stats.moveSpeed > p1.stats.moveSpeed && p1.stats.moveSpeed > p3.stats.moveSpeed);
-  assert.ok(p2.stats.runSpeed > p1.stats.runSpeed && p1.stats.runSpeed > p3.stats.runSpeed);
-  assert.ok(p2.physics.jumpVelocity < p1.physics.jumpVelocity && p1.physics.jumpVelocity < p3.physics.jumpVelocity);
-  assert.ok(p2.stats.maxHealth < p1.stats.maxHealth && p1.stats.maxHealth < p3.stats.maxHealth);
-  assert.ok(p2.stats.attackPower < p1.stats.attackPower && p1.stats.attackPower < p3.stats.attackPower);
-  assert.ok(p2.stats.defense < p1.stats.defense && p1.stats.defense < p3.stats.defense);
+  for (const fighter of [p2, p3]) {
+    assert.deepEqual(fighter.stats, p1.stats, `${fighter.id} stats must match Player 1`);
+    assert.deepEqual(fighter.physics, p1.physics, `${fighter.id} physics must match Player 1`);
+    assert.deepEqual(fighter.facing, p1.facing, `${fighter.id} facing must match Player 1`);
+    assert.equal(fighter.attackOverrides, undefined);
+    assert.equal(fighter.render.scale, p1.render.scale);
+    assert.equal(fighter.render.footOffsetY, p1.render.footOffsetY);
+  }
 
   const expectedFrames = {
     idle: {endFrame: 7, repeat: -1},

@@ -57,13 +57,13 @@ test('GameEventBus delivers fighter:switchRequested and fighter:changed payloads
   bus.emit('fighter:changed', {
     fighterId: 'player-2',
     name: 'Player 2',
-    maxHealth: 950,
-    attackPower: 95,
-    defense: 95,
+    maxHealth: 1000,
+    attackPower: 100,
+    defense: 100,
   });
 
   assert.deepEqual(requests, ['player-2']);
-  assert.deepEqual(changes, [{fighterId: 'player-2', maxHealth: 950}]);
+  assert.deepEqual(changes, [{fighterId: 'player-2', maxHealth: 1000}]);
 
   unsubReq();
   unsubChanged();

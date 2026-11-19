@@ -279,98 +279,84 @@ test('resolveGroundedPushbox keeps fighters separated without pushing past arena
   assert.ok(Math.abs(cornerSep.bX - cornerSep.aX) >= 87.99);
 });
 
-test('Character attack overrides apply timing & knockback once while preserving immutable ATTACK_REGISTRY for Player 1', () => {
+test('All three fighters resolve identical attack timings, hitboxes, knockback, hitstun, and blockstun from ATTACK_REGISTRY', () => {
   const p1 = getCharacterConfig('player-1');
   const p2 = getCharacterConfig('player-2');
   const p3 = getCharacterConfig('player-3');
 
-  const baseLP = ATTACK_REGISTRY['light-punch'];
-  const p1LP = resolveAttackDefinition('light-punch', p1.attackOverrides);
-  const p2LP = resolveAttackDefinition('light-punch', p2.attackOverrides);
-  const p3LP = resolveAttackDefinition('light-punch', p3.attackOverrides);
+  const attackIds = ['light-punch', 'heavy-punch', 'light-kick', 'heavy-kick'] as const;
+  for (const attackId of attackIds) {
+    const base = ATTACK_REGISTRY[attackId];
+    const p1Def = resolveAttackDefinition(attackId, p1.attackOverrides);
+    const p2Def = resolveAttackDefinition(attackId, p2.attackOverrides);
+    const p3Def = resolveAttackDefinition(attackId, p3.attackOverrides);
 
-  // Player 1 keeps exact immutable baseline reference
-  assert.equal(p1LP, baseLP);
-  assert.equal(p1LP.damage, 40);
-  assert.equal(p1LP.startupMs, 80);
+    assert.deepEqual(p1Def, base);
+    assert.deepEqual(p2Def, p1Def, `P2 ${attackId} must match P1`);
+    assert.deepEqual(p3Def, p1Def, `P3 ${attackId} must match P1`);
+    assert.equal(getAttackTotalDurationMs(p2Def), getAttackTotalDurationMs(p1Def));
+    assert.equal(getAttackTotalDurationMs(p3Def), getAttackTotalDurationMs(p1Def));
 
-  // Player 2 is faster with lighter knockback; Player 3 is slower with heavier knockback
-  assert.ok(p2LP.startupMs < p1LP.startupMs);
-  assert.ok(p2LP.recoveryMs < p1LP.recoveryMs);
-  assert.ok(p2LP.knockbackStrength < p1LP.knockbackStrength);
+    // Confirm hitbox positioning & dimensions match identically
+    assert.deepEqual(
+      computeAttackHitbox(300, 472, 'right', p2Def),
+      computeAttackHitbox(300, 472, 'right', p1Def),
+    );
+    assert.deepEqual(
+      computeAttackHitbox(300, 472, 'left', p3Def),
+      computeAttackHitbox(300, 472, 'left', p1Def),
+    );
+  }
 
-  assert.ok(p3LP.startupMs > p1LP.startupMs);
-  assert.ok(p3LP.recoveryMs > p1LP.recoveryMs);
-  assert.ok(p3LP.knockbackStrength > p1LP.knockbackStrength);
-  assert.ok(p3LP.hitstunMs > p1LP.hitstunMs);
-
-  // Attack overrides must not mutate ATTACK_REGISTRY or pre-bake attackPower damage scaling
-  assert.equal(p2LP.damage, baseLP.damage);
-  assert.equal(p3LP.damage, baseLP.damage);
+  // Verify resolveAttackDefinition still supports custom overrides without mutating ATTACK_REGISTRY
+  const customLP = resolveAttackDefinition('light-punch', {
+    'light-punch': {startupMs: 65, knockbackStrength: 135},
+  });
+  assert.equal(customLP.startupMs, 65);
+  assert.equal(customLP.knockbackStrength, 135);
   assert.equal(ATTACK_REGISTRY['light-punch'].startupMs, 80);
-
-  // FighterCombatState steps with distinct per-character attack durations
-  const p2Combat = new FighterCombatState(p2.stats.maxHealth, p2.attackOverrides);
-  const p3Combat = new FighterCombatState(p3.stats.maxHealth, p3.attackOverrides);
-  p2Combat.step(16, {...BASE_COMBAT_INPUT, lightPunchJustPressed: true}, true);
-  p3Combat.step(16, {...BASE_COMBAT_INPUT, lightPunchJustPressed: true}, true);
-
-  assert.equal(p2Combat.getAttackController().getSnapshot().totalDurationMs, getAttackTotalDurationMs(p2LP));
-  assert.equal(p3Combat.getAttackController().getSnapshot().totalDurationMs, getAttackTotalDurationMs(p3LP));
-  assert.ok(
-    p2Combat.getAttackController().getSnapshot().totalDurationMs <
-      p3Combat.getAttackController().getSnapshot().totalDurationMs,
-  );
+  assert.equal(ATTACK_REGISTRY['light-punch'].knockbackStrength, 150);
 });
 
-test('DamageSystem & CombatManager scale attackPower/100 and 100/defense exactly once without double-applying modifiers', () => {
+test('All three fighters have identical damage, defense, knockback, hitstun, and blockstun in DamageSystem & CombatManager', () => {
   const p1 = getCharacterConfig('player-1');
   const p2 = getCharacterConfig('player-2');
   const p3 = getCharacterConfig('player-3');
 
-  const lp = resolveAttackDefinition('light-punch', p2.attackOverrides);
-  // P2 (attackPower=95) vs Training Dummy default (defense=100) => Math.round(40 * 0.95 * 1.0) = 38
-  const p2VsDummy = calculateAttackDamage(lp, false, DEFAULT_COMBAT_CONFIG, {
-    attackerAttackPower: p2.stats.attackPower,
-    defenderDefense: 100,
-  });
-  assert.equal(p2VsDummy.finalDamage, 38);
+  assert.equal(p1.stats.defense, 100);
+  assert.equal(p2.stats.defense, p1.stats.defense);
+  assert.equal(p3.stats.defense, p1.stats.defense);
 
-  // P3 (attackPower=118) vs Training Dummy default (defense=100) => Math.round(40 * 1.18 * 1.0) = 47
-  const p3LP = resolveAttackDefinition('light-punch', p3.attackOverrides);
-  const p3VsDummy = calculateAttackDamage(p3LP, false, DEFAULT_COMBAT_CONFIG, {
-    attackerAttackPower: p3.stats.attackPower,
-    defenderDefense: 100,
-  });
-  assert.equal(p3VsDummy.finalDamage, 47);
+  const attackIds = ['light-punch', 'heavy-punch', 'light-kick', 'heavy-kick'] as const;
+  for (const attackId of attackIds) {
+    const p1Def = resolveAttackDefinition(attackId, p1.attackOverrides);
+    const p2Def = resolveAttackDefinition(attackId, p2.attackOverrides);
+    const p3Def = resolveAttackDefinition(attackId, p3.attackOverrides);
 
-  // P3 (attackPower=118) vs P2 (defense=95) => Math.round(40 * (118/100) * (100/95)) = 50
-  const p3VsP2 = calculateAttackDamage(p3LP, false, DEFAULT_COMBAT_CONFIG, {
-    attackerAttackPower: p3.stats.attackPower,
-    defenderDefense: p2.stats.defense,
-  });
-  assert.equal(p3VsP2.finalDamage, 50);
+    for (const isBlocked of [false, true]) {
+      const p1Outcome = calculateAttackDamage(p1Def, isBlocked, DEFAULT_COMBAT_CONFIG, {
+        attackerAttackPower: p1.stats.attackPower,
+        defenderDefense: p3.stats.defense,
+      });
+      const p2Outcome = calculateAttackDamage(p2Def, isBlocked, DEFAULT_COMBAT_CONFIG, {
+        attackerAttackPower: p2.stats.attackPower,
+        defenderDefense: p1.stats.defense,
+      });
+      const p3Outcome = calculateAttackDamage(p3Def, isBlocked, DEFAULT_COMBAT_CONFIG, {
+        attackerAttackPower: p3.stats.attackPower,
+        defenderDefense: p2.stats.defense,
+      });
 
-  // P2 (attackPower=95) vs P3 (defense=115) => Math.round(40 * (95/100) * (100/115)) = 33
-  const p2VsP3 = calculateAttackDamage(lp, false, DEFAULT_COMBAT_CONFIG, {
-    attackerAttackPower: p2.stats.attackPower,
-    defenderDefense: p3.stats.defense,
-  });
-  assert.equal(p2VsP3.finalDamage, 33);
+      assert.deepEqual(p2Outcome, p1Outcome, `P2 ${attackId} (blocked=${isBlocked}) must match P1`);
+      assert.deepEqual(p3Outcome, p1Outcome, `P3 ${attackId} (blocked=${isBlocked}) must match P1`);
+    }
+  }
 
-  // P1 (100/100) vs Dummy (100) remains strictly 40
-  const p1VsDummy = calculateAttackDamage(
-    resolveAttackDefinition('light-punch', p1.attackOverrides),
-    false,
-    DEFAULT_COMBAT_CONFIG,
-    {attackerAttackPower: p1.stats.attackPower, defenderDefense: 100},
-  );
-  assert.equal(p1VsDummy.finalDamage, 40);
-
-  // Verify CombatManager passes attackPower & defense cleanly once end-to-end
+  // Verify CombatManager resolves identical hit impact for P3 vs P2 as P1 baseline
   const combatManager = new CombatManager();
   const p3Ctrl = new AttackController();
   let defenderHealth = p2.stats.maxHealth;
+  assert.equal(defenderHealth, 1000);
 
   const p3Actor: CombatantActor = {
     getCombatantId: () => p3.id,
@@ -418,12 +404,16 @@ test('DamageSystem & CombatManager scale attackPower/100 and 100/defense exactly
   combatManager.registerCombatant(p3Actor);
   combatManager.registerCombatant(p2Defender);
 
+  const p3LP = resolveAttackDefinition('light-punch', p3.attackOverrides);
   p3Ctrl.startAttack(p3LP);
   p3Ctrl.update(p3LP.startupMs);
   combatManager.update();
 
-  assert.equal(defenderHealth, p2.stats.maxHealth - 50);
-  assert.equal(combatManager.getLastHitEvent()?.damageApplied, 50);
+  assert.equal(defenderHealth, p2.stats.maxHealth - 40);
+  const hitEvent = combatManager.getLastHitEvent();
+  assert.equal(hitEvent?.damageApplied, 40);
+  assert.equal(hitEvent?.knockbackVelocityX, 150);
+  assert.equal(hitEvent?.stunDurationMs, 220);
   combatManager.destroy();
 });
 
